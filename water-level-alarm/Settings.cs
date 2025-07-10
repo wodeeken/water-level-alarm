@@ -1,6 +1,7 @@
 public class Settings
 {
     public int WaterSensorGPIOPinNumber { get; set; }
+    public int ChipNumber { get; set; }
     public List<Email> Emails { get; set; }
     public List<PhoneNumber> PhoneNumbers { get; set; }
     public EmailConfiguration EmailConfiguration { get; set; }
