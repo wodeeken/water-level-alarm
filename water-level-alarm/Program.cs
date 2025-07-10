@@ -26,7 +26,7 @@ namespace LoraArduCAMHostApp
             {
 #pragma warning disable SDGPIO0001
                 LibGpiodV2Driver driver = new LibGpiodV2Driver(gpioChipNum);
-                controller = new GpioController();
+                controller = new GpioController(driver);
             }
             else
             {
