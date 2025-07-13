@@ -1,25 +1,41 @@
 ﻿using System.Device.Gpio;
 using System.Device.Gpio.Drivers;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.Json;
+using System.Net.Mail;
+using System.Net;
 namespace LoraArduCAMHostApp
 {
     class Program
     {
+        public static Settings settings { get; set; }
         static void Main(string[] args)
         {
             // Get configuration.
             IConfigurationRoot config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
             .Build();
-            
-            Settings? settings = config.GetRequiredSection("Settings").Get<Settings>();
 
+            settings = config.GetRequiredSection("Settings").Get<Settings>();
 
-            int sensorPin = settings != null ? settings.WaterSensorGPIOPinNumber : 262;
-            int gpioChipNum = settings != null ? settings.ChipNumber : 1;
+            int sensorPin = settings.WaterSensorGPIOPinNumber;
+            int gpioChipNum = settings.ChipNumber;
+            Console.WriteLine("--GPIO and Email Configuration--");
             Console.WriteLine($"Pin: {sensorPin}");
             Console.WriteLine($"GPIO Chip number: {gpioChipNum}");
+            Console.WriteLine($"SMTP Server: {settings.SMTPConfiguration.SMTPServerAddress}");
+            Console.WriteLine($"SMTP Server Port: {settings.SMTPConfiguration.SMTPServerPort}");
+            Console.WriteLine($"SMTP Server Username: {settings.SMTPConfiguration.Username}");
+            Console.WriteLine($"Sender Address: {settings.SMTPConfiguration.SenderAddress}");
+            Console.WriteLine($"Email Send Max Retry Count: {settings.SMTPConfiguration.MaxRetryCount}");
+            Console.WriteLine($"Alert Triggered Message subject: {settings.EmailMessageConfiguration.AlarmTriggeredMessage.Subject}");
+            Console.WriteLine($"Alert Triggered Message body: {settings.EmailMessageConfiguration.AlarmTriggeredMessage.Body}");
+            Console.WriteLine($"Alert Canceled Message subject: {settings.EmailMessageConfiguration.AlarmCanceledMessage.Subject}");
+            Console.WriteLine($"Alert Canceled Message body: {settings.EmailMessageConfiguration.AlarmCanceledMessage.Body}");
+            Console.WriteLine("Recipients");
+            foreach (EmailRecipient recipient in settings.EmailRecipients)
+            {
+                Console.WriteLine($"\tName: {recipient.Name}, Address: {recipient.Address}");
+            }
             GpioController controller;
             // System must have libgpiod <V2 installed. 
             if (OperatingSystem.IsLinux())
@@ -33,25 +49,53 @@ namespace LoraArduCAMHostApp
                 throw new PlatformNotSupportedException("OS not supported. Only Linux is currently supported.");
             }
 
-            
+
             controller.OpenPin(sensorPin, PinMode.Input);
-            
-            while (true)
+            controller.RegisterCallbackForPinValueChangedEvent(sensorPin, PinEventTypes.Rising, PinValueChanged_Triggered);
+            controller.RegisterCallbackForPinValueChangedEvent(sensorPin, PinEventTypes.Falling, PinValueChanged_Canceled);
+            Console.WriteLine("Press any key to close.");
+            // wait forever.
+            Console.ReadKey();
+            controller.ClosePin(sensorPin);
+
+        }
+        private static void SendEmail(SMTPConfiguration serverConfig, List<EmailRecipient> recipients, EmailMessageConfiguration_EventSpecificConfig message)
+        {
+            SmtpClient client = new SmtpClient(serverConfig.SMTPServerAddress, serverConfig.SMTPServerPort);
+            client.EnableSsl = true;
+            client.UseDefaultCredentials = false;
+            client.Credentials = new NetworkCredential(serverConfig.Username, serverConfig.Password);
+            foreach (EmailRecipient recipient in recipients)
             {
-                PinValue buttonState = controller.Read(sensorPin);
-
-                if (buttonState == PinValue.Low)
+                int curRetryCount = 0;
+                while (curRetryCount < serverConfig.MaxRetryCount)
                 {
-                    Console.WriteLine("0");
+                    try
+                    {
+                        Console.WriteLine($"Retry Count {curRetryCount}/{serverConfig.MaxRetryCount} - Sending email to {recipient.Address}.");
+                        MailMessage mailMessage = new MailMessage(serverConfig.SenderAddress, recipient.Address, message.Subject, $"{recipient.Name}, \n {message.Body}");
+                        client.Send(mailMessage);
+                        Console.WriteLine("Success!");
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Failure!");
+                        Thread.Sleep(250);
+                        curRetryCount++;
+                    }
                 }
-                else
-                {
-                    Console.WriteLine("1");
-                }
-
-                Thread.Sleep(100);
             }
         }
-
+        private static void PinValueChanged_Triggered(object sender, PinValueChangedEventArgs eventArgs)
+        {
+            Console.WriteLine("Alarm Triggered. Sending email.");
+            SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
+        }
+        private static void PinValueChanged_Canceled(object sender, PinValueChangedEventArgs eventArgs)
+        {
+            Console.WriteLine("Alarm Canceled. Sending email.");
+            SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmCanceledMessage);
+        }
     }
 }

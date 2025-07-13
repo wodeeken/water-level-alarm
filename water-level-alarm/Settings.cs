@@ -2,32 +2,35 @@ public class Settings
 {
     public int WaterSensorGPIOPinNumber { get; set; }
     public int ChipNumber { get; set; }
-    public List<Email> Emails { get; set; }
-    public List<PhoneNumber> PhoneNumbers { get; set; }
-    public EmailConfiguration EmailConfiguration { get; set; }
-    public SMSConfiguration SMSConfiguration { get; set; }
-    public EmailMessageConfiguration EmailMessageConfiguration { get; set; }
-    public SMSMessageConfiguration SMSMessageConfiguration { get; set; }
+    public required List<EmailRecipient> EmailRecipients { get; set; }
+    public required SMTPConfiguration SMTPConfiguration { get; set; }
+    public required EmailMessageConfiguration EmailMessageConfiguration { get; set; }
 }
-public class EmailConfiguration {
-
+public class SMTPConfiguration
+{
+    public required string SMTPServerAddress { get; set; }
+    public int SMTPServerPort { get; set; }
+    public required string Username { get; set; }
+    public required string Password { get; set; }
+    public required string SenderAddress { get; set; }
+    public int MaxRetryCount { get; set; }
 }
 public class EmailMessageConfiguration
 {
-
+    public required EmailMessageConfiguration_EventSpecificConfig AlarmTriggeredMessage { get; set; }
+    public required EmailMessageConfiguration_EventSpecificConfig AlarmCanceledMessage { get; set; }
 }
-public class SMSMessageConfiguration
+public class EmailRecipient {
+    public required string Name { get; set; }
+    public required string Address { get; set; }
+}
+public class PhoneNumber
 {
-    
+    public required string Name { get; set; }
+    public required string Number { get; set; }
 }
-public class SMSConfiguration {
-
-}
-public class Email {
-    public string Name { get; set; }
-    public string Address { get; set; }
-}
-public class PhoneNumber {
-    public string Name { get; set; }
-    public string Number { get; set; }
+public class EmailMessageConfiguration_EventSpecificConfig
+{
+    public required string Subject { get; set; }
+    public required string Body { get; set; }
 }
