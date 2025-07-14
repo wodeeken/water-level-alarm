@@ -12,6 +12,7 @@ namespace LoraArduCAMHostApp
         public static GpioController controller { get; set; }
         public static PinValue previousPinValue { get; set; }
         public static bool firstPoll { get; set; }
+        public static System.Timers.Timer timer { get; set; }
         static void Main(string[] args)
         {
             // Get configuration.
@@ -56,7 +57,7 @@ namespace LoraArduCAMHostApp
             // read pin.
             firstPoll = true;
             previousPinValue = controller.Read(sensorPin);
-            System.Timers.Timer timer = new System.Timers.Timer();
+            timer = new System.Timers.Timer();
             timer.Interval = settings.PinSampleIntervalMS;
             timer.Elapsed += PollPinEvent;
             timer.Start();
@@ -87,7 +88,7 @@ namespace LoraArduCAMHostApp
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("Failure!");
+                        Console.WriteLine("Failure! Exception message {e}");
                         Thread.Sleep(250);
                         curRetryCount++;
                     }
@@ -95,8 +96,11 @@ namespace LoraArduCAMHostApp
             }
         }
 
-        private static void PollPinEvent(object? sender, ElapsedEventArgs eventArgs) {
-            if (firstPoll) {
+        private static void PollPinEvent(object? sender, ElapsedEventArgs eventArgs)
+        {
+            timer.Stop();
+            if (firstPoll)
+            {
                 firstPoll = false;
                 if (previousPinValue == PinValue.High)
                 {
@@ -104,7 +108,9 @@ namespace LoraArduCAMHostApp
                     Console.WriteLine("Alarm Triggered. Sending email.");
                     SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
                 }
-            }else {
+            }
+            else
+            {
                 PinValue currentPollPinValue = controller.Read(settings.WaterSensorGPIOPinNumber);
                 if (currentPollPinValue != previousPinValue)
                 {
@@ -121,6 +127,7 @@ namespace LoraArduCAMHostApp
                     previousPinValue = currentPollPinValue;
                 }
             }
+            timer.Start();
             
         }
     }
