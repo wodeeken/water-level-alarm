@@ -2,6 +2,7 @@ public class Settings
 {
     public int WaterSensorGPIOPinNumber { get; set; }
     public int ChipNumber { get; set; }
+    public int PinSampleIntervalMS { get; set; }
     public required List<EmailRecipient> EmailRecipients { get; set; }
     public required SMTPConfiguration SMTPConfiguration { get; set; }
     public required EmailMessageConfiguration EmailMessageConfiguration { get; set; }

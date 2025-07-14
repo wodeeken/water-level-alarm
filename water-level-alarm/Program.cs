@@ -3,11 +3,15 @@ using System.Device.Gpio.Drivers;
 using Microsoft.Extensions.Configuration;
 using System.Net.Mail;
 using System.Net;
+using System.Timers;
 namespace LoraArduCAMHostApp
 {
     class Program
     {
         public static Settings settings { get; set; }
+        public static GpioController controller { get; set; }
+        public static PinValue previousPinValue { get; set; }
+        public static bool firstPoll { get; set; }
         static void Main(string[] args)
         {
             // Get configuration.
@@ -22,6 +26,7 @@ namespace LoraArduCAMHostApp
             Console.WriteLine("--GPIO and Email Configuration--");
             Console.WriteLine($"Pin: {sensorPin}");
             Console.WriteLine($"GPIO Chip number: {gpioChipNum}");
+            Console.WriteLine($"Pin Sample Interval (Ms): {settings.PinSampleIntervalMS}");
             Console.WriteLine($"SMTP Server: {settings.SMTPConfiguration.SMTPServerAddress}");
             Console.WriteLine($"SMTP Server Port: {settings.SMTPConfiguration.SMTPServerPort}");
             Console.WriteLine($"SMTP Server Username: {settings.SMTPConfiguration.Username}");
@@ -36,7 +41,6 @@ namespace LoraArduCAMHostApp
             {
                 Console.WriteLine($"\tName: {recipient.Name}, Address: {recipient.Address}");
             }
-            GpioController controller;
             // System must have libgpiod <V2 installed. 
             if (OperatingSystem.IsLinux())
             {
@@ -48,11 +52,14 @@ namespace LoraArduCAMHostApp
             {
                 throw new PlatformNotSupportedException("OS not supported. Only Linux is currently supported.");
             }
-
-
             controller.OpenPin(sensorPin, PinMode.Input);
-            controller.RegisterCallbackForPinValueChangedEvent(sensorPin, PinEventTypes.Rising, PinValueChanged_Triggered);
-            controller.RegisterCallbackForPinValueChangedEvent(sensorPin, PinEventTypes.Falling, PinValueChanged_Canceled);
+            // read pin.
+            firstPoll = true;
+            previousPinValue = controller.Read(sensorPin);
+            System.Timers.Timer timer = new System.Timers.Timer();
+            timer.Interval = settings.PinSampleIntervalMS;
+            timer.Elapsed += PollPinEvent;
+            timer.Start();
             Console.WriteLine("Press any key to close.");
             // wait forever.
             Console.ReadKey();
@@ -87,15 +94,34 @@ namespace LoraArduCAMHostApp
                 }
             }
         }
-        private static void PinValueChanged_Triggered(object sender, PinValueChangedEventArgs eventArgs)
-        {
-            Console.WriteLine("Alarm Triggered. Sending email.");
-            SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
-        }
-        private static void PinValueChanged_Canceled(object sender, PinValueChangedEventArgs eventArgs)
-        {
-            Console.WriteLine("Alarm Canceled. Sending email.");
-            SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmCanceledMessage);
+
+        private static void PollPinEvent(object? sender, ElapsedEventArgs eventArgs) {
+            if (firstPoll) {
+                firstPoll = false;
+                if (previousPinValue == PinValue.High)
+                {
+                    // send an alert immediately.
+                    Console.WriteLine("Alarm Triggered. Sending email.");
+                    SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
+                }
+            }else {
+                PinValue currentPollPinValue = controller.Read(settings.WaterSensorGPIOPinNumber);
+                if (currentPollPinValue != previousPinValue)
+                {
+                    if (currentPollPinValue == PinValue.Low)
+                    {
+                        Console.WriteLine("Alarm Canceled. Sending email.");
+                        SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmCanceledMessage);
+                    }
+                    else if (currentPollPinValue == PinValue.High)
+                    {
+                        Console.WriteLine("Alarm Triggered. Sending email.");
+                        SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
+                    }
+                    previousPinValue = currentPollPinValue;
+                }
+            }
+            
         }
     }
 }
