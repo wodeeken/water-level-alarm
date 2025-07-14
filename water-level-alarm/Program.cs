@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using System.Net.Mail;
 using System.Net;
 using System.Timers;
-namespace LoraArduCAMHostApp
+namespace WaterLevelAlarm
 {
     class Program
     {
