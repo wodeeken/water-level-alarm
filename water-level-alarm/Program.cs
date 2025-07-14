@@ -88,7 +88,7 @@ namespace LoraArduCAMHostApp
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("Failure! Exception message {e}");
+                        Console.WriteLine($"Failure! Exception message {e}");
                         Thread.Sleep(250);
                         curRetryCount++;
                     }
