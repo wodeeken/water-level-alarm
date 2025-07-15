@@ -1,9 +1,10 @@
 ﻿using System.Device.Gpio;
 using System.Device.Gpio.Drivers;
 using Microsoft.Extensions.Configuration;
-using System.Net.Mail;
-using System.Net;
+using MailKit.Net.Smtp;  
+using MimeKit; 
 using System.Timers;
+using System.Linq.Expressions;
 namespace WaterLevelAlarm
 {
     class Program
@@ -43,6 +44,7 @@ namespace WaterLevelAlarm
                 Console.WriteLine($"\tName: {recipient.Name}, Address: {recipient.Address}");
             }
             // System must have libgpiod <V2 installed. 
+            SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
             if (OperatingSystem.IsLinux())
             {
 #pragma warning disable SDGPIO0001
@@ -69,30 +71,46 @@ namespace WaterLevelAlarm
         }
         private static void SendEmail(SMTPConfiguration serverConfig, List<EmailRecipient> recipients, EmailMessageConfiguration_EventSpecificConfig message)
         {
-            SmtpClient client = new SmtpClient(serverConfig.SMTPServerAddress, serverConfig.SMTPServerPort);
-            client.EnableSsl = true;
-            client.UseDefaultCredentials = false;
-            client.Credentials = new NetworkCredential(serverConfig.Username, serverConfig.Password);
-            foreach (EmailRecipient recipient in recipients)
+
+            try
             {
-                int curRetryCount = 0;
-                while (curRetryCount < serverConfig.MaxRetryCount)
+
+                using (SmtpClient client = new SmtpClient())
                 {
-                    try
+                    client.Connect(serverConfig.SMTPServerAddress, serverConfig.SMTPServerPort, false);
+                    client.Authenticate(serverConfig.Username, serverConfig.Password);
+                    foreach (EmailRecipient recipient in recipients)
                     {
-                        Console.WriteLine($"Retry Count {curRetryCount}/{serverConfig.MaxRetryCount} - Sending email to {recipient.Address}.");
-                        MailMessage mailMessage = new MailMessage(serverConfig.SenderAddress, recipient.Address, message.Subject, $"{recipient.Name}, \n {message.Body}");
-                        client.Send(mailMessage);
-                        Console.WriteLine("Success!");
-                        break;
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Failure! Exception message {e}");
-                        Thread.Sleep(250);
-                        curRetryCount++;
+                        int curRetryCount = 0;
+                        while (curRetryCount < serverConfig.MaxRetryCount)
+                        {
+
+                            try
+                            {
+
+                                Console.WriteLine($"Retry Count {curRetryCount}/{serverConfig.MaxRetryCount} - Sending email to {recipient.Address}.");
+                                MimeMessage mailMessage = new MimeMessage();
+                                mailMessage.From.Add(new MailboxAddress("Water Level Meter", serverConfig.SenderAddress));
+                                mailMessage.To.Add(new MailboxAddress(recipient.Name, recipient.Address));
+                                mailMessage.Subject = message.Subject;
+                                mailMessage.Body = new TextPart(MimeKit.Text.TextFormat.Text) { Text = $"{recipient.Name}, \n {message.Body}" };
+                                client.Send(mailMessage);
+                                Console.WriteLine("Success!");
+                                break;
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"Failure! Exception message {e}");
+                                Thread.Sleep(250);
+                                curRetryCount++;
+                            }
+                        }
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"SMTP Connection Error. Exception message: {e}");
             }
         }
 
