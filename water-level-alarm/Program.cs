@@ -64,7 +64,7 @@ namespace WaterLevelAlarm
             timer.Start();
             Console.WriteLine("Press any key to close.");
             // wait forever.
-            Console.ReadKey();
+            Console.Read();
             controller.ClosePin(sensorPin);
 
         }
