@@ -64,8 +64,7 @@ namespace WaterLevelAlarm
             timer.Start();
             Console.WriteLine("Press any key to close.");
             // wait forever.
-            Console.Read();
-            controller.ClosePin(sensorPin);
+            Thread.Sleep(Timeout.Infinite);
 
         }
         private static void SendEmail(SMTPConfiguration serverConfig, List<EmailRecipient> recipients, EmailMessageConfiguration_EventSpecificConfig message)
