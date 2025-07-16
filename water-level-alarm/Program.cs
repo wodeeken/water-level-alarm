@@ -44,7 +44,6 @@ namespace WaterLevelAlarm
                 Console.WriteLine($"\tName: {recipient.Name}, Address: {recipient.Address}");
             }
             // System must have libgpiod <V2 installed. 
-            SendEmail(settings.SMTPConfiguration, settings.EmailRecipients, settings.EmailMessageConfiguration.AlarmTriggeredMessage);
             if (OperatingSystem.IsLinux())
             {
 #pragma warning disable SDGPIO0001
